@@ -1,0 +1,44 @@
+{
+  "name": "ThemeGram — Neon intro",
+  "settings": {
+    "width": 480,
+    "height": 854,
+    "fps": 24,
+    "quality": "preview",
+    "filename": "themegram-demo.mp4",
+    "audio": null,
+    "volume": 0.25
+  },
+  "scenes": [
+    {
+      "id": "hook",
+      "title": "Opening hook",
+      "duration": 2.5,
+      "headline": "TELEGRAM’INGGA",
+      "subtitle": "YANGI KO‘RINISH BER",
+      "accent": "#9b5cff",
+      "media": null,
+      "animation": "zoom"
+    },
+    {
+      "id": "brand",
+      "title": "Brand",
+      "duration": 2.5,
+      "headline": "ThemeGram",
+      "subtitle": "Temalar olami",
+      "accent": "#22e6ff",
+      "media": null,
+      "animation": "zoom"
+    },
+    {
+      "id": "cta",
+      "title": "Call to action",
+      "duration": 3,
+      "headline": "O‘ZINGGA MOS",
+      "subtitle": "@theme_gram_bot  •  Botga kir",
+      "accent": "#b76bff",
+      "media": null,
+      "animation": "zoom"
+    }
+  ]
+}
