@@ -75,8 +75,22 @@ def ffmpeg_info():
 def safe_asset_path(filename):
     if not filename:
         return None
-    candidate = (MEDIA / filename).resolve()
-    if MEDIA.resolve() not in candidate.parents or not candidate.is_file():
+    # References use "category/name"; old projects may contain only a filename.
+    raw = Path(str(filename))
+    if raw.is_absolute() or ".." in raw.parts:
+        return None
+    if len(raw.parts) == 2 and raw.parts[0] in FOLDERS:
+        candidate = (FOLDERS[raw.parts[0]] / raw.parts[1]).resolve()
+        base = FOLDERS[raw.parts[0]].resolve()
+    elif len(raw.parts) == 1:
+        matches = [(folder / raw.name).resolve() for folder in FOLDERS.values() if (folder / raw.name).is_file()]
+        if len(matches) != 1:
+            return None
+        candidate = matches[0]
+        base = candidate.parent
+    else:
+        return None
+    if base not in candidate.parents or not candidate.is_file():
         return None
     return candidate
 
@@ -147,7 +161,10 @@ def render_video(job_id, project):
             except Exception: return ImageFont.load_default()
         segments = []
         for index, scene in enumerate(scenes):
-            with job_lock: jobs[job_id].update(progress=int(index / len(scenes) * 90), message=f"{index+1}/{len(scenes)}-sahna tayyorlanmoqda")
+            with job_lock:
+                if jobs.get(job_id, {}).get("cancel_requested"):
+                    raise RuntimeError("Render foydalanuvchi tomonidan bekor qilindi.")
+                jobs[job_id].update(progress=int(index / len(scenes) * 90), message=f"{index+1}/{len(scenes)}-sahna tayyorlanmoqda")
             img = Image.new("RGB", (width, height), (7, 7, 17))
             draw = ImageDraw.Draw(img)
             accent = scene["accent"]
@@ -403,6 +420,42 @@ def serve_media(category, name):
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="ThemeGram Neon Studio")
+    parser.add_argument("--diagnose", action="store_true", help="FFmpeg, Pillow, xotira va diskni tekshirish")
+    parser.add_argument("--demo", action="store_true", help="Namuna loyihadan MP4 render qilish")
+    args = parser.parse_args()
+    if args.diagnose:
+        try:
+            import PIL
+            pillow = PIL.__version__
+        except Exception:
+            pillow = "TOPILMADI"
+        usage = shutil.disk_usage(ROOT)
+        print("Python:", __import__("sys").version.split()[0])
+        print("Platform:", __import__("platform").platform())
+        print("Pillow:", pillow)
+        print("FFmpeg:", json.dumps(ffmpeg_info(), ensure_ascii=False))
+        print("Disk bo‘sh GiB:", round(usage.free / 1024**3, 2))
+        try:
+            print("RAM:", Path("/proc/meminfo").read_text(encoding="utf-8").splitlines()[:3])
+        except Exception:
+            print("RAM: aniqlanmadi")
+        raise SystemExit(0)
+    if args.demo:
+        try:
+            import PIL
+        except Exception:
+            raise SystemExit("Pillow topilmadi: pip install -r requirements.txt")
+        if not ffmpeg_info().get("ok"):
+            raise SystemExit("FFmpeg topilmadi: pkg install ffmpeg")
+        demo_id = "demo-" + uuid.uuid4().hex[:8]
+        jobs[demo_id] = {"status": "running", "progress": 0}
+        render_video(demo_id, json.loads(json.dumps(DEFAULT_PROJECT)))
+        print(json.dumps(jobs[demo_id], ensure_ascii=False, indent=2))
+        if jobs[demo_id].get("status") != "done":
+            raise SystemExit("Demo render muvaffaqiyatsiz. Logs papkasini tekshiring.")
+        raise SystemExit(0)
     host = os.environ.get("THEMEGRAM_HOST", "127.0.0.1")
     port = int(os.environ.get("THEMEGRAM_PORT", "8765"))
     print(f"ThemeGram Neon Studio: http://{host}:{port}")
