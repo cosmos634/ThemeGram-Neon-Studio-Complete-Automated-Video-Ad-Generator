@@ -138,7 +138,9 @@ def render_video(job_id, project):
     log_path = LOGS / f"{job_id}.log"
     work = CACHE / job_id
     work.mkdir(parents=True, exist_ok=True)
-    out_name = secure_filename(str(project.get("name", "themegram-ad")).strip().replace(" ", "-"))[:60] or "themegram-ad"
+    requested_name = str(project.get("settings", {}).get("filename") or project.get("name", "themegram-ad"))
+    requested_name = Path(requested_name).stem
+    out_name = secure_filename(requested_name.strip().replace(" ", "-"))[:60] or "themegram-ad"
     output = EXPORTS / f"{out_name}-{job_id[:6]}.mp4"
     ffmpeg = tool_path("ffmpeg")
     if not ffmpeg:
