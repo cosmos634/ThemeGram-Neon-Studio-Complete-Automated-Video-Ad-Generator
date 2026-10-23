@@ -315,8 +315,6 @@ def render_video(job_id, project):
                     result = subprocess.run(cmd, capture_output=True, text=True, timeout=max(60, int(scene["duration"]*fps*3)))
                 if result.returncode:
                     raise RuntimeError((error_text or result.stderr)[-1200:] or "Sahna videosini yaratib bo'lmadi.")
-            if result.returncode:
-                raise RuntimeError(result.stderr[-1200:] or "Sahna videosini yaratib bo'lmadi.")
             segments.append(segment)
             with job_lock: jobs[job_id].update(progress=int((index+1)/len(scenes)*90), message=f"{index+1}/{len(scenes)} sahna tayyor")
         list_file = work / "concat.txt"
