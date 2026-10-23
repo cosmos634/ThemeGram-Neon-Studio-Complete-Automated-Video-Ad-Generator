@@ -233,7 +233,7 @@ def render_video(job_id, project):
             still = work / f"scene-{index:02d}.png"
             img.save(still, optimize=True)
             segment = work / f"scene-{index:02d}.mp4"
-            cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-loop", "1", "-i", str(still), "-t", str(scene["duration"]), "-r", str(fps), "-vf", f"scale={width}:{height},format=yuv420p", "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28" if width >= 1080 else "25", "-movflags", "+faststart", str(segment)]
+            cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-loop", "1", "-i", str(still), "-t", str(scene["duration"]), "-r", str(fps), "-vf", f"scale={width}:{height},zoompan=z='min(zoom+0.001,1.035)':d=1:s={width}x{height}:fps={fps},format=yuv420p", "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28" if width >= 1080 else "25", "-movflags", "+faststart", str(segment)]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=max(60, int(scene["duration"]*fps*3)))
             if result.returncode:
                 # Some builds lack libx264; try their default MPEG-4 encoder.
