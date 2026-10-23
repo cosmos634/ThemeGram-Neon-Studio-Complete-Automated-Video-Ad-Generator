@@ -30,6 +30,12 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/media").status_code, 200)
         self.assertEqual(self.client.get("/api/exports").status_code, 200)
 
+    def test_neon_motion_frames_change_over_time(self):
+        first, fw, fh = studio.motion_frame(0, 24, 480, 854, (155, 92, 255))
+        later, fw2, fh2 = studio.motion_frame(12, 24, 480, 854, (155, 92, 255))
+        self.assertEqual((fw, fh), (fw2, fh2))
+        self.assertNotEqual(first, later)
+
     def test_empty_project_rejected(self):
         response = self.client.post("/api/render", json={"name": "empty", "scenes": [], "settings": {}})
         self.assertEqual(response.status_code, 400)
