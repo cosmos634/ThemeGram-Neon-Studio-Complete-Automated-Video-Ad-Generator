@@ -1,0 +1,8 @@
+__pycache__/
+.venv/
+cache/*
+logs/*
+exports/*
+media/*
+projects/*.json
+!projects/sample_project.json
