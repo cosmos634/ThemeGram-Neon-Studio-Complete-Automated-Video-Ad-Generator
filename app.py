@@ -332,6 +332,30 @@ def upload():
         return jsonify(error=f"Fayl tekshiruvdan o'tmadi: {exc}"), 400
 
 
+@app.patch("/api/media/<category>/<path:name>")
+def rename_media(category, name):
+    if category not in FOLDERS:
+        return jsonify(error="Bo'lim topilmadi."), 404
+    old = (FOLDERS[category] / name).resolve()
+    if FOLDERS[category].resolve() not in old.parents or not old.is_file():
+        return jsonify(error="Fayl topilmadi."), 404
+    try:
+        payload = request.get_json(force=True)
+        new_name = secure_filename(str(payload.get("name", "")))
+        suffix = Path(new_name).suffix.lower()
+        if not new_name or suffix != old.suffix.lower() or suffix not in ALLOWED[category]:
+            return jsonify(error="Yangi nomda asl fayl kengaytmasi saqlanishi kerak."), 400
+        dest = (FOLDERS[category] / new_name).resolve()
+        if dest.parent != FOLDERS[category].resolve():
+            return jsonify(error="Fayl nomi yaroqsiz."), 400
+        if dest.exists() and dest != old:
+            return jsonify(error="Bunday nomli fayl bor. Boshqa nom tanlang."), 409
+        old.rename(dest)
+        return jsonify(ok=True, name=dest.name, path=f"{category}/{dest.name}")
+    except Exception as exc:
+        return jsonify(error=f"Nomni o'zgartirib bo'lmadi: {exc}"), 400
+
+
 @app.delete("/api/media/<category>/<path:name>")
 def delete_media(category, name):
     if category not in FOLDERS: return jsonify(error="Bo'lim topilmadi."), 404
