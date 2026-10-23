@@ -17,6 +17,8 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 python app.py --diagnose
 python app.py
+# keyingi ishga tushirishlar uchun:
+bash start.sh
 ```
 
 Brauzerda `http://127.0.0.1:8765` manzilini oching. Server faqat telefonning o‘zida ishlaydi.
