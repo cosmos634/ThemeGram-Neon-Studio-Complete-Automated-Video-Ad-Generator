@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import mimetypes
 import os
 import re
@@ -134,6 +135,36 @@ def validate_project(data):
     return data
 
 
+def motion_frame(frame_index, frame_count, width, height, rgb):
+    """Create one lightweight RGBA frame of neon particles and a moving scan beam."""
+    from PIL import Image, ImageDraw, ImageFilter
+    fw, fh = max(96, width // 4), max(160, height // 4)
+    t = frame_index / max(1, frame_count - 1)
+    layer = Image.new("RGBA", (fw, fh), (0, 0, 0, 0))
+    glow = Image.new("RGBA", (fw, fh), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow)
+    beam_y = int(((t * 1.45) % 1.0) * fh)
+    gd.line((0, beam_y, fw, beam_y - fh * .12), fill=(*rgb, 150), width=max(2, fw // 90))
+    beam_x = int(((t * 1.7 + .2) % 1.0) * fw)
+    gd.line((beam_x, 0, beam_x - fw * .28, fh), fill=(40, 220, 255, 105), width=max(1, fw // 150))
+    glow = glow.filter(ImageFilter.GaussianBlur(max(2, fw // 45)))
+    layer = Image.alpha_composite(layer, glow)
+    draw = ImageDraw.Draw(layer)
+    for i in range(18):
+        phase = (t * (0.22 + (i % 5) * .045) + i * .137) % 1.0
+        x = int(((i * 0.618 + phase * (1 if i % 2 else -1)) % 1.0) * fw)
+        y = int(((i * .271 + phase * (1.4 if i % 3 else -.8)) % 1.0) * fh)
+        radius = max(1, fw // 150) * (1 + (i % 3 == 0))
+        color = (*rgb, 160) if i % 2 == 0 else (75, 230, 255, 175)
+        draw.ellipse((x-radius, y-radius, x+radius, y+radius), fill=color)
+    pulse = .5 + .5 * math.sin(t * math.tau * 2)
+    cx, cy = fw // 2, int(fh * .83)
+    radius = int(fw * (.11 + .035 * pulse))
+    draw.ellipse((cx-radius, cy-radius, cx+radius, cy+radius),
+                 outline=(*rgb, int(55 + 80 * pulse)), width=max(1, fw // 160))
+    return layer.tobytes(), fw, fh
+
+
 def render_video(job_id, project):
     log_path = LOGS / f"{job_id}.log"
     work = CACHE / job_id
@@ -233,13 +264,57 @@ def render_video(job_id, project):
             still = work / f"scene-{index:02d}.png"
             img.save(still, optimize=True)
             segment = work / f"scene-{index:02d}.mp4"
-            cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-loop", "1", "-i", str(still), "-t", str(scene["duration"]), "-r", str(fps), "-vf", f"scale={width}:{height},zoompan=z='min(zoom+0.001,1.035)':d=1:s={width}x{height}:fps={fps},format=yuv420p", "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28" if width >= 1080 else "25", "-movflags", "+faststart", str(segment)]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=max(60, int(scene["duration"]*fps*3)))
-            if result.returncode:
-                # Some builds lack libx264; try their default MPEG-4 encoder.
-                cmd[cmd.index("libx264")] = "mpeg4"
-                cmd[cmd.index("28" if width >= 1080 else "25")] = "5"
+            frame_count = max(1, int(round(float(scene["duration"]) * fps)))
+            fx_w, fx_h = max(96, width // 4), max(160, height // 4)
+            filter_graph = (
+                f"[0:v]zoompan=z='min(zoom+0.001,1.035)':d=1:s={width}x{height}:fps={fps}[bg];"
+                f"[1:v]scale={width}:{height}:flags=bilinear[fx];"
+                "[bg][fx]overlay=shortest=1:format=auto,format=yuv420p[outv]"
+            )
+            cmd = [
+                ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+                "-loop", "1", "-framerate", str(fps), "-i", str(still),
+                "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{fx_w}x{fx_h}",
+                "-r", str(fps), "-i", "pipe:0",
+                "-filter_complex", filter_graph, "-map", "[outv]", "-t", str(scene["duration"]),
+                "-an", "-c:v", "libx264", "-preset", "ultrafast",
+                "-crf", "28" if width >= 1080 else "25", "-movflags", "+faststart",
+                str(segment)
+            ]
+            def stream_motion(encoder):
+                try:
+                    for frame_index in range(frame_count):
+                        with job_lock:
+                            if jobs.get(job_id, {}).get("cancel_requested"):
+                                raise RuntimeError("Render foydalanuvchi tomonidan bekor qilindi.")
+                        raw_frame, _, _ = motion_frame(frame_index, frame_count, width, height, rgb)
+                        encoder.stdin.write(raw_frame)
+                    encoder.stdin.close()
+                    stderr = encoder.stderr.read().decode("utf-8", errors="replace") if encoder.stderr else ""
+                    return encoder.wait(), stderr
+                except Exception:
+                    try:
+                        encoder.stdin.close()
+                    except Exception:
+                        pass
+                    encoder.kill()
+                    encoder.wait()
+                    raise
+            encoder = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            try:
+                returncode, error_text = stream_motion(encoder)
+            except BrokenPipeError:
+                error_text = encoder.stderr.read().decode("utf-8", errors="replace") if encoder.stderr else ""
+                returncode = encoder.wait()
+            if returncode:
+                cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-loop", "1", "-i", str(still), "-t", str(scene["duration"]), "-r", str(fps), "-vf", f"scale={width}:{height},zoompan=z='min(zoom+0.001,1.035)':d=1:s={width}x{height}:fps={fps},format=yuv420p", "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28" if width >= 1080 else "25", "-movflags", "+faststart", str(segment)]
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=max(60, int(scene["duration"]*fps*3)))
+                if result.returncode:
+                    cmd[cmd.index("libx264")] = "mpeg4"
+                    cmd[cmd.index("28" if width >= 1080 else "25")] = "5"
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=max(60, int(scene["duration"]*fps*3)))
+                if result.returncode:
+                    raise RuntimeError((error_text or result.stderr)[-1200:] or "Sahna videosini yaratib bo'lmadi.")
             if result.returncode:
                 raise RuntimeError(result.stderr[-1200:] or "Sahna videosini yaratib bo'lmadi.")
             segments.append(segment)
