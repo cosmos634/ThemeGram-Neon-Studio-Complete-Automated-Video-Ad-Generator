@@ -1,6 +1,6 @@
 # ThemeGram Neon Studio
 
-Termux uchun yengil, lokal video reklama generatori. Python + Pillow + FFmpeg; Chromium, GPU, bulut yoki pullik API talab qilinmaydi.
+Termux uchun yengil, lokal video reklama generatori. Python + Flask + Pillow + FFmpeg; Chromium, GPU, bulut yoki pullik API talab qilinmaydi.
 
 ## Termux o‘rnatish
 
@@ -33,17 +33,17 @@ python app.py --demo
 
 1. Telefon brauzerida interfeysni oching.
 2. Media bo‘limidagi fayl tanlash tugmasi orqali rasm yoki audio tanlang.
-3. Fayl loyihaning `media/` papkasiga nusxalanadi; asl fayl o‘zgartirilmaydi.
+3. Fayl `media/images/`, `media/audio/` yoki mos papkaga nusxalanadi; asl fayl o‘zgartirilmaydi.
 4. Sahnadagi media ro‘yxatidan rasmni tanlab, saqlang va render qiling.
 
 Termux fayllarga ruxsat so‘rasa `termux-setup-storage` buyrug‘ini bajaring. Brauzer fayl tanlagichi Android ruxsat bergan fayllarnigina ko‘rsatadi.
 
 ## Eslatma
 
-- Birinchi ishga tushishda demo loyiha avtomatik yaratiladi.
+- `projects/sample_project.json` — namuna loyiha; `python app.py --demo` esa ichki namunaviy loyihani render qiladi.
 - Render CPU orqali ishlaydi; telefonda 1080p uzoq davom etishi mumkin. Avval 480x854 preview ishlating.
-- Video H.264 bilan yaratiladi. FFmpeg build'ida `libx264` bo‘lmasa, diagnostika xabar beradi.
-- Audio qo‘shish ixtiyoriy; AAC mavjud bo‘lmasa, render xatolikni ochiq ko‘rsatadi.
+- Video odatda H.264 bilan yaratiladi; FFmpeg build'ida `libx264` bo‘lmasa, MPEG-4 encoder fallback'i sinab ko‘riladi.
+- Audio ixtiyoriy; audio kodlash mos kelmasa, ilova ovozsiz MP4 fallback'ini sinaydi.
 - Namuna telefon ekranidagi tema ko‘rinishi — maket, haqiqiy ThemeGram skrinshoti emas.
 - Ilova internetga server ochmaydi, token talab qilmaydi.
 - Bu birinchi amaliy versiya: real-time timeline montaj emas, sahna asosidagi yengil generator.
